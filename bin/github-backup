@@ -524,8 +524,6 @@ def retrieve_repositories(args, authenticated_user):
         template = 'https://{0}/user/repos'.format(
             get_github_api_host(args))
     else:
-        if args.private:
-            log_error('Authenticated user is different from user being backed up, thus private repositories cannot be accessed')
         template = 'https://{0}/users/{1}/repos'.format(
             get_github_api_host(args),
             args.user)
