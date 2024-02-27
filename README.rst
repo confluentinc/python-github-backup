@@ -39,6 +39,7 @@ CLI Usage is as follows::
                   [--prefer-ssh] [-v]
                   [--keychain-name OSX_KEYCHAIN_ITEM_NAME]
                   [--keychain-account OSX_KEYCHAIN_ITEM_ACCOUNT]
+                  [--exclude [REPOSITORY [REPOSITORY ...]]]
                   USER
 
     Backup a github account
@@ -102,6 +103,8 @@ CLI Usage is as follows::
       --keychain-account OSX_KEYCHAIN_ITEM_ACCOUNT
                             OSX ONLY: account field of password item in OSX
                             keychain that holds the personal access or OAuth token
+      --exclude [REPOSITORY [REPOSITORY ...]]
+                            names of repositories to exclude from backup.
 
 
 The package can be used to backup an *entire* organization or repository, including issues and wikis in the most appropriate format (clones for wikis, json files for issues).
