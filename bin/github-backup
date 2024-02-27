@@ -290,6 +290,10 @@ def parse_args():
     parser.add_argument('--keychain-account',
                         dest='osx_keychain_item_account',
                         help='OSX ONLY: account field of password item in OSX keychain that holds the personal access or OAuth token')
+    parser.add_argument('--exclude',
+                        dest='exclude',
+                        help='names of repositories to exclude',
+                        nargs="*")
     return parser.parse_args()
 
 
@@ -595,6 +599,8 @@ def filter_repositories(args, unfiltered_repositories):
         repositories = [r for r in repositories if r.get('language') and r.get('language').lower() in languages]  # noqa
     if name_regex:
         repositories = [r for r in repositories if name_regex.match(r['name'])]
+    if args.exclude:
+        repositories = [r for r in repositories if r['name'] not in args.exclude]
 
     return repositories
 
