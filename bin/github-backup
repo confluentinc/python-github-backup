@@ -323,7 +323,8 @@ def get_auth(args, encode=True):
         if args.token.startswith(_path_specifier):
             args.token = open(args.token[len(_path_specifier):],
                               'rt').readline().strip()
-        auth = args.token + ':' + 'x-oauth-basic'
+        auth = {"Authorization": f"Bearer {args.token}"}
+        return auth
     elif args.username:
         if not args.password:
             args.password = getpass.getpass()
@@ -520,9 +521,10 @@ def check_git_lfs_install():
         sys.exit(1)
 
 
-def retrieve_repositories(args, authenticated_user):
+def retrieve_repositories(args):
     log_info('Retrieving repositories')
     single_request = False
+    """
     if args.user == authenticated_user['login']:
         # we must use the /user/repos API to be able to access private repos
         template = 'https://{0}/user/repos'.format(
@@ -530,7 +532,7 @@ def retrieve_repositories(args, authenticated_user):
     else:
         template = 'https://{0}/users/{1}/repos'.format(
             get_github_api_host(args),
-            args.user)
+            args.user)"""
 
     if args.organization:
         template = 'https://{0}/orgs/{1}/repos'.format(
@@ -1000,8 +1002,8 @@ def main():
 
     log_info('Backing up user {0} to {1}'.format(args.user, output_directory))
 
-    authenticated_user = get_authenticated_user(args)
-    repositories = retrieve_repositories(args, authenticated_user)
+    # authenticated_user = get_authenticated_user(args)
+    repositories = retrieve_repositories(args)
     repositories = filter_repositories(args, repositories)
     backup_repositories(args, output_directory, repositories)
     backup_account(args, output_directory)
