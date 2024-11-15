@@ -492,6 +492,15 @@ def _request_http_error(exc, auth, errors):
 
         time.sleep(delta)
         should_continue = True
+    elif exc.code == 401:
+        log_info('401 Unauthorized,  trying again')
+
+        errors.append('401 Unauthorized: {}'.format(exc.reason))
+        # sometimes the API returns 401 when there is a race condition with the token refreshing    
+        time.sleep(30)
+        should_continue = True
+    else:
+        errors.append('HTTP Error {}: {}'.format(exc.code, exc.reason))
     return errors, should_continue
 
 
