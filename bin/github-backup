@@ -401,6 +401,24 @@ def retrieve_data(args, template, query_args=None, single_request=False):
             template = 'API request returned HTTP {0}: {1}'
             errors.append(template.format(status_code, r.reason))
             log_error(errors)
+        elif status_code == 401:
+            log_info('Unauthorized access to the API. Please check your credentials.')
+            if os.path.exists(os.path.expanduser('~/.gh_token')):
+                try:
+                    with open(os.path.expanduser('~/.gh_token'), "r") as f:
+                        auth = f.read().strip()
+                    request = _construct_request(per_page, page, query_args, template, auth)  # noqa
+                    r, errors = _get_response(request, auth, template)
+                    status_code = int(r.getcode())
+                    if status_code != 200:
+                        template = 'API request returned HTTP {0}: {1}'
+                        errors.append(template.format(status_code, r.reason))
+                        log_error(errors)
+                    
+                except Exception as e:
+                    log_error('Error: {0}'.format(e))
+            else:
+                log_error('No token found in ~/.gh_token')
 
         response = json.loads(r.read().decode('utf-8'))
         if len(errors) == 0:
@@ -413,6 +431,26 @@ def retrieve_data(args, template, query_args=None, single_request=False):
 
         if len(errors) > 0:
             log_error(errors)
+            if 'git returned 128:' in errors:
+                log_error('Found error 128. Skipping.')
+                if os.path.exists(os.path.expanduser('~/.gh_token')):
+                    try:
+                        with open(os.path.expanduser('~/.gh_token'), "r") as f:
+                            auth = f.read().strip()
+                            log_info('Retrying with token from ~/.gh_token')
+                            log_info("token is {}".format(auth))
+                        request = _construct_request(per_page, page, query_args, template, auth)  # noqa
+                        r, errors = _get_response(request, auth, template)
+                        status_code = int(r.getcode())
+                        if status_code != 200:
+                            template = 'API request returned HTTP {0}: {1}'
+                            errors.append(template.format(status_code, r.reason))
+                            log_error(errors)
+                        
+                    except Exception as e:
+                        log_error('Error: {0}'.format(e))
+                else:
+                    log_error('No token found in ~/.gh_token')
 
         if single_request:
             break
@@ -492,6 +530,7 @@ def _request_http_error(exc, auth, errors):
 
         time.sleep(delta)
         should_continue = True
+    
     return errors, should_continue
 
 
