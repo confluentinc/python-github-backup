@@ -979,10 +979,11 @@ def fetch_repository(name,
             else:
                 git_command = ['git', 'clone', remote_url, local_dir]
         
-        logger = logging.getLogger('subprocess_logger')
+       logger = logging.getLogger('subprocess_logger')
         handler = logging.StreamHandler(sys.stdout)
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
+        handler.setLevel(logging.INFO)  # Explicitly set the handler's log level
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
         return_code = logging_subprocess(git_command, logger)
