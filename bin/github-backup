@@ -67,6 +67,15 @@ def logging_subprocess(popenargs,
     and logs stdout messages via logger.debug and stderr messages via
     logger.error.
     """
+
+    if logger is None:
+        logger = logging.getLogger('subprocess_logger')
+        handler = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+
     child = subprocess.Popen(popenargs, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, **kwargs)
     if sys.platform == 'win32':
@@ -74,6 +83,7 @@ def logging_subprocess(popenargs,
 
     log_level = {child.stdout: stdout_log_level,
                  child.stderr: stderr_log_level}
+    
 
     def check_io():
         if sys.platform == 'win32':
@@ -108,6 +118,10 @@ def logging_subprocess(popenargs,
         else:
             logger.error('{} returned {}:'.format(popenargs[0], rc))
             logger.error('\t' + ' '.join(popenargs))
+    
+    # Flush the logs
+    for handler in logger.handlers:
+        handler.flush()
 
     return rc
 
