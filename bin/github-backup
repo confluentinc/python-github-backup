@@ -100,6 +100,14 @@ def logging_subprocess(popenargs,
     if rc != 0:
         print('{} returned {}:'.format(popenargs[0], rc), file=sys.stderr)
         print('\t', ' '.join(popenargs), file=sys.stderr)
+        if rc == 128:
+            logger.error('Error: git returned 128 - Repository already exists or no access')
+            with open(os.path.expanduser('~/.netrc'), "r") as f:
+                auth = f.read().strip()
+                logger.info("auth is {}".format(auth))
+        else:
+            logger.error('{} returned {}:'.format(popenargs[0], rc))
+            logger.error('\t' + ' '.join(popenargs))
 
     return rc
 
@@ -964,7 +972,10 @@ def fetch_repository(name,
                 git_command = ['git', 'lfs', 'clone', remote_url, local_dir]
             else:
                 git_command = ['git', 'clone', remote_url, local_dir]
-        logging_subprocess(git_command, None)
+        return_code = logging_subprocess(git_command, None)
+        if return_code != 0:
+            log_error('Error: git returned {0}: {1}'.format(return_code, git_command))
+            return
 
 
 def backup_account(args, output_directory):
