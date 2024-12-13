@@ -68,14 +68,6 @@ def logging_subprocess(popenargs,
     logger.error.
     """
 
-    if logger is None:
-        logger = logging.getLogger('subprocess_logger')
-        handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
-
     child = subprocess.Popen(popenargs, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, **kwargs)
     if sys.platform == 'win32':
@@ -986,7 +978,14 @@ def fetch_repository(name,
                 git_command = ['git', 'lfs', 'clone', remote_url, local_dir]
             else:
                 git_command = ['git', 'clone', remote_url, local_dir]
-        return_code = logging_subprocess(git_command, None)
+        
+        logger = logging.getLogger('subprocess_logger')
+        handler = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        return_code = logging_subprocess(git_command, logger)
         if return_code != 0:
             log_error('Error: git returned {0}: {1}'.format(return_code, git_command))
             return
