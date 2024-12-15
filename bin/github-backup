@@ -986,7 +986,7 @@ def fetch_repository(name,
         handler.setLevel(logging.INFO)  # Explicitly set the handler's log level
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
-        return_code = logging_subprocess(git_command, logger, stdout_log_level=logging.INFO)
+        return_code = logging_subprocess(git_command, logger, stdout_log_level=logging.INFO, stderr_log_level=logging.INFO)
         if return_code != 0:
             log_error('Error: git returned {0}: {1}'.format(return_code, git_command))
             return
