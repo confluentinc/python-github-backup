@@ -90,17 +90,8 @@ def logging_subprocess(popenargs,
             line = io.readline()
             if not logger:
                 continue
-            if not line:
-                continue
-            decoded_line = line.decode().strip()
-            if io == child.stderr:
-                if any(keyword in decoded_line.lower() for keyword in ["error", "failed", "fatal", "exception"]):
-                    logger.log(logging.ERROR, decoded_line)
-                else:
-                    continue
-            else:
-                logger.log(log_level[io], decoded_line)
-
+            if not (io == child.stderr and not line):
+                logger.log(log_level[io], line[:-1])
 
     # keep checking stdout/stderr until the child exits
     while child.poll() is None:
@@ -114,17 +105,20 @@ def logging_subprocess(popenargs,
         print('{} returned {}:'.format(popenargs[0], rc), file=sys.stderr)
         print('\t', ' '.join(popenargs), file=sys.stderr)
         if rc == 128:
-            logger.error('Error: git returned 128 - Repository already exists or no access')
-            with open(os.path.expanduser('~/.netrc'), "r") as f:
-                auth = f.read().strip()
-                logger.info("auth is {}".format(auth))
-        else:
-            logger.error('{} returned {}:'.format(popenargs[0], rc))
-            logger.error('\t' + ' '.join(popenargs))
+            print ('Error: git returned 128 - Repository already exists or no access', file=sys.stderr)
+            if os.path.exists(os.path.expanduser('~/.netrc')):
+                with open(os.path.expanduser('~/.netrc'), "r") as f:
+                    auth = f.read().strip()
+                    print("auth is {}".format(auth), file=sys.stderr)
+            if os.path.exists(os.path.expanduser('~/.netrc_template.ctmpl')):
+                with open(os.path.expanduser('~/.netrc_template.ctmpl'), "r") as f:
+                    auth = f.read().strip()
+                    print(".netrc template auth is {}".format(auth), file=sys.stderr)
     
     # Flush the logs
-    for handler in logger.handlers:
-        handler.close()
+    if logger:
+        for handler in logger.handlers:
+            handler.close()
 
     # Close file descriptors
     child.stdout.close()
@@ -1002,7 +996,7 @@ def fetch_repository(name,
         handler.setLevel(logging.INFO)  # Explicitly set the handler's log level
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
-        return_code = logging_subprocess(git_command, logger)
+        return_code = logging_subprocess(git_command, None)
         if return_code != 0:
             log_error('Error: git returned {0}: {1}'.format(return_code, git_command))
             return
