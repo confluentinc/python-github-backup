@@ -88,8 +88,12 @@ def logging_subprocess(popenargs,
             line = io.readline()
             if not logger:
                 continue
-            if not (io == child.stderr and not line):
-                logger.log(log_level[io], line[:-1])
+            if not line:
+                continue
+            if io == child.stderr and "error" in line.decode().lower():
+                logger.log(logging.ERROR, line.decode().strip())
+            else:
+                logger.log(log_level[io], line.decode().strip())
 
     # keep checking stdout/stderr until the child exits
     while child.poll() is None:
