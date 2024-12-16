@@ -73,7 +73,7 @@ def logging_subprocess(popenargs,
     if sys.platform == 'win32':
         log_info("Windows operating system detected - no subprocess logging will be returned")
 
-    log_level = {child.stdout: logger.INFO,
+    log_level = {child.stdout: logging.INFO,
                  child.stderr: stderr_log_level}
     
 
