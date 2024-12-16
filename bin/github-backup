@@ -109,7 +109,7 @@ def logging_subprocess(popenargs,
                 if any(keyword in decoded_line.lower() for keyword in ["error", "failed", "fatal", "exception"]):
                     logger.log(logging.ERROR, decoded_line)
                 else:
-                    logger.log(logging.INFO, decoded_line)
+                    continue
             else:
                 logger.log(log_level[io], decoded_line)
 
