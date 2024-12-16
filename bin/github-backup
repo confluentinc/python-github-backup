@@ -136,7 +136,9 @@ def logging_subprocess(popenargs,
     
     # Flush the logs
     for handler in logger.handlers:
-        handler.flush()
+        handler.close()
+    for handler in stderr_logger.handlers:
+        handler.close()
     
     # Close file descriptors
     child.stdout.close()
