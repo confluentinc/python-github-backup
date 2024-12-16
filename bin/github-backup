@@ -72,10 +72,11 @@ def logging_subprocess(popenargs,
                              stderr=subprocess.PIPE, **kwargs)
 
     # Ensure the directory for stderr log exists
-    stderr_log_path = '/path/to/stderr.log'
+    stderr_log_path = os.path.expanduser('~/stderr.log')
     stderr_log_dir = os.path.dirname(stderr_log_path)
     if not os.path.exists(stderr_log_dir):
         os.makedirs(stderr_log_dir)
+
     stderr_logger = logging.getLogger('stderr_logger')
     stderr_handler = logging.FileHandler('/path/to/stderr.log')
     stderr_handler.setFormatter(formatter)
