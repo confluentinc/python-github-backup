@@ -79,6 +79,7 @@ def logging_subprocess(popenargs,
 
     stderr_logger = logging.getLogger('stderr_logger')
     stderr_handler = logging.FileHandler(stderr_log_path)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     stderr_handler.setFormatter(formatter)
     stderr_logger.addHandler(stderr_handler)
     stderr_logger.setLevel(logging.INFO)
