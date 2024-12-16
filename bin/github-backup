@@ -70,6 +70,11 @@ def logging_subprocess(popenargs,
 
     child = subprocess.Popen(popenargs, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, **kwargs)
+    stderr_logger = logging.getLogger('stderr_logger')
+    stderr_handler = logging.FileHandler('/path/to/stderr.log')
+    stderr_handler.setFormatter(formatter)
+    stderr_logger.addHandler(stderr_handler)
+    stderr_logger.setLevel(logging.INFO)
     if sys.platform == 'win32':
         log_info("Windows operating system detected - no subprocess logging will be returned")
 
@@ -90,10 +95,16 @@ def logging_subprocess(popenargs,
                 continue
             if not line:
                 continue
-            if io == child.stderr and "error" in line.decode().lower():
-                logger.log(logging.ERROR, line.decode().strip())
+            decoded_line = line.decode().strip()
+            if io == child.stderr:
+                stderr_logger.info(decoded_line)  # Log all stderr messages for analysis
+                if any(keyword in decoded_line.lower() for keyword in ["error", "failed", "fatal", "exception"]):
+                    logger.log(logging.ERROR, decoded_line)
+                else:
+                    logger.log(logging.INFO, decoded_line)
             else:
-                logger.log(log_level[io], line.decode().strip())
+                logger.log(log_level[io], decoded_line)
+
 
     # keep checking stdout/stderr until the child exits
     while child.poll() is None:
