@@ -1025,7 +1025,7 @@ def fetch_repository(name,
                         auth = f.read().strip()
 
                     # Define the regex pattern to extract the password
-                    pattern = rf'machine {re.escape(machine_name)}\s+login \S+\s+password (\S+)'
+                    pattern = rf'machine {re.escape("github.com")}\s+login \S+\s+password (\S+)'
 
                     # Search for the pattern in the .netrc content
                     match = re.search(pattern, auth)
@@ -1038,7 +1038,7 @@ def fetch_repository(name,
                         with open(os.path.expanduser('~/.netrc'), "r") as f:
                             auth = f.read().strip()
                         # Define the regex pattern to extract the password
-                        pattern = rf'machine {re.escape(machine_name)}\s+login \S+\s+password (\S+)'
+                        pattern = rf'machine {re.escape("github.com")}\s+login \S+\s+password (\S+)'
 
                         # Search for the pattern in the .netrc content
                         match = re.search(pattern, auth)
