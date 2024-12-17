@@ -992,7 +992,7 @@ def fetch_repository(name,
         if return_code != 0:
             log_error('Error: git returned {0}: {1}'.format(return_code, git_command))
             if return_code == 128:
-                print ('Error: git returned 128 - Repository already exists or no access', file=sys.stderr)
+                log_error('Error: git returned 128: {0}'.format(git_command))
                 if os.path.exists(os.path.expanduser('~/.netrc')):
                     with open(os.path.expanduser('~/.netrc'), "r") as f:
                         auth = f.read().strip()
@@ -1004,10 +1004,9 @@ def fetch_repository(name,
                     match = re.search(pattern, auth)
                     password = match.group(1)
 
-                    print("auth is {}".format(auth), file=sys.stderr)
                     while True:
                         time.sleep(5)
-                        print("Retrying with password from ~/.netrc", file=sys.stderr)
+                        log_info("Retrying with password from ~/.netrc")
                         with open(os.path.expanduser('~/.netrc'), "r") as f:
                             auth = f.read().strip()
                         # Define the regex pattern to extract the password
@@ -1016,16 +1015,28 @@ def fetch_repository(name,
                         # Search for the pattern in the .netrc content
                         match = re.search(pattern, auth)
                         new_password = match.group(1)
-                        print("new password is {}".format(new_password), file=sys.stderr)
-                        print("old password is {}".format(password), file=sys.stderr)
 
                         if new_password != password:
+                            log_info("Password has been updated in ~/.netrc")
                             break
                     log_info("Retrying git clone after updated password from ~/.netrc")
                     return_code = logging_subprocess(git_command, None)
                     if return_code != 0:
                         log_error('Error: git returned again {0}: {1}'.format(return_code, git_command))
                         return
+                else:
+                    log_error('No .netrc file found in home directory')
+                    while True:
+                        if os.path.exists(os.path.expanduser('~/.netrc')):
+                            break
+                        time.sleep(5)
+                        log_info("Waiting for .netrc file to be created")
+                    log_info("Retrying git clone after updated password from ~/.netrc")
+                    return_code = logging_subprocess(git_command, None)
+                    if return_code != 0:
+                        log_error('Error: git returned again {0}: {1}'.format(return_code, git_command))
+                        return
+    
 
 
 def backup_account(args, output_directory):
