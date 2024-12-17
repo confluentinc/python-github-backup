@@ -106,33 +106,6 @@ def logging_subprocess(popenargs,
         print('\t', ' '.join(popenargs), file=sys.stderr)
         if rc == 128:
             print ('Error: git returned 128 - Repository already exists or no access', file=sys.stderr)
-            if os.path.exists(os.path.expanduser('~/.netrc')):
-                with open(os.path.expanduser('~/.netrc'), "r") as f:
-                    auth = f.read().strip()
-
-                    # Define the regex pattern to extract the password
-                    pattern = rf'machine {re.escape(machine_name)}\s+login \S+\s+password (\S+)'
-
-                    # Search for the pattern in the .netrc content
-                    match = re.search(pattern, auth)
-                    password = match.group(1)
-
-                    print("auth is {}".format(auth), file=sys.stderr)
-            while True:
-                time.sleep(5)
-
-                with open(os.path.expanduser('~/.netrc'), "r") as f:
-                    auth = f.read().strip()
-                    # Define the regex pattern to extract the password
-                    pattern = rf'machine {re.escape(machine_name)}\s+login \S+\s+password (\S+)'
-
-                    # Search for the pattern in the .netrc content
-                    match = re.search(pattern, auth)
-                    new_password = match.group(1)
-
-                    if new_password != password:
-                        break
-
             
     # Flush the logs
     if logger:
