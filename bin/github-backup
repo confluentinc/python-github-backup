@@ -990,50 +990,56 @@ def fetch_repository(name,
         logger.setLevel(logging.INFO)
         return_code = logging_subprocess(git_command, None)
         if return_code != 0:
-            log_error('Error: git returned {0}: {1}'.format(return_code, git_command))          
-            if os.path.exists(os.path.expanduser('~/.netrc')):
-                with open(os.path.expanduser('~/.netrc'), "r") as f:
-                    auth = f.read().strip()
-
-                # Define the regex pattern to extract the password
-                pattern = rf'machine {re.escape("github.com")}\s+login \S+\s+password (\S+)'
-
-                # Search for the pattern in the .netrc content
-                match = re.search(pattern, auth)
-                password = match.group(1)
-
-                while True:
-                    time.sleep(5)
-                    log_info("Retrying with password from ~/.netrc")
+            log_error('Error: git returned {0}: {1}'.format(return_code, git_command)) 
+            try:         
+                log_info("Checking if netrc exists")
+                if os.path.exists(os.path.expanduser('~/.netrc')):
                     with open(os.path.expanduser('~/.netrc'), "r") as f:
                         auth = f.read().strip()
+                    log_info("Found .netrc file in home directory")
                     # Define the regex pattern to extract the password
                     pattern = rf'machine {re.escape("github.com")}\s+login \S+\s+password (\S+)'
 
                     # Search for the pattern in the .netrc content
                     match = re.search(pattern, auth)
-                    new_password = match.group(1)
+                    password = match.group(1)
+                    log_info("Wait for password to be updated in ~/.netrc")
+                    while True:
+                        time.sleep(5)
+                        log_info("Retrying with password from ~/.netrc")
+                        with open(os.path.expanduser('~/.netrc'), "r") as f:
+                            auth = f.read().strip()
+                        # Define the regex pattern to extract the password
+                        pattern = rf'machine {re.escape("github.com")}\s+login \S+\s+password (\S+)'
 
-                    if new_password != password:
-                        log_info("Password has been updated in ~/.netrc")
-                        break
-                log_info("Retrying git clone after updated password from ~/.netrc")
-                return_code = logging_subprocess(git_command, None)
-                if return_code != 0:
-                    log_error('Error: git returned again {0}: {1}'.format(return_code, git_command))
-                    return
-            else:
-                log_error('No .netrc file found in home directory')
-                while True:
-                    if os.path.exists(os.path.expanduser('~/.netrc')):
-                        break
-                    time.sleep(5)
-                    log_info("Waiting for .netrc file to be created")
-                log_info("Retrying git clone after updated password from ~/.netrc")
-                return_code = logging_subprocess(git_command, None)
-                if return_code != 0:
-                    log_error('Error: git returned again {0}: {1}'.format(return_code, git_command))
-                    return
+                        # Search for the pattern in the .netrc content
+                        match = re.search(pattern, auth)
+                        new_password = match.group(1)
+
+                        if new_password != password:
+                            log_info("Password has been updated in ~/.netrc")
+                            break
+                    log_info("Retrying git clone after updated password from ~/.netrc")
+                    return_code = logging_subprocess(git_command, None)
+                    if return_code != 0:
+                        log_error('Error: git returned again {0}: {1}'.format(return_code, git_command))
+                        return
+                else:
+                    log_error('No .netrc file found in home directory')
+                    while True:
+                        if os.path.exists(os.path.expanduser('~/.netrc')):
+                            break
+                        time.sleep(5)
+                        log_info("Waiting for .netrc file to be created")
+                    log_info("Retrying git clone after updated password from ~/.netrc")
+                    return_code = logging_subprocess(git_command, None)
+                    if return_code != 0:
+                        log_error('Error: git returned again {0}: {1}'.format(return_code, git_command))
+                        return
+            except Exception as e:
+                print("Error: {0}".format(e))
+                log_error('Error: {0}'.format(e))
+                raise
         else:
             log_info("Command succeeded")
             return
