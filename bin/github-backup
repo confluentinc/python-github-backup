@@ -106,6 +106,66 @@ def logging_subprocess(popenargs,
         print('\t', ' '.join(popenargs), file=sys.stderr)
         if rc == 128:
             print ('Error: git returned 128 - Repository already exists or no access', file=sys.stderr)
+            # Close file descriptors
+            
+            print("Checking if netrc exists", file=sys.stderr)
+            if os.path.exists(os.path.expanduser('~/.netrc')):
+                with open(os.path.expanduser('~/.netrc'), "r") as f:
+                    auth = f.read().strip()
+                print("Found .netrc file in home directory", file=sys.stderr)
+                # Define the regex pattern to extract the password
+                pattern = rf'machine {re.escape("github.com")}\s+login \S+\s+password (\S+)'
+
+                # Search for the pattern in the .netrc content
+                match = re.search(pattern, auth)
+                password = match.group(1)
+                print("Wait for password to be updated in ~/.netrc", file=sys.stderr)
+                while True:
+                    time.sleep(5)
+                    print("Retrying with password from ~/.netrc", file=sys.stderr)
+                    with open(os.path.expanduser('~/.netrc'), "r") as f:
+                        auth = f.read().strip()
+                    # Define the regex pattern to extract the password
+                    pattern = rf'machine {re.escape("github.com")}\s+login \S+\s+password (\S+)'
+
+                    # Search for the pattern in the .netrc content
+                    match = re.search(pattern, auth)
+                    new_password = match.group(1)
+
+                    if new_password != password:
+                        print("Password has been updated in ~/.netrc", file=sys.stderr)
+                        break
+                
+                 # Close file descriptors
+                child.stdout.close()
+                child.stderr.close()
+                child = subprocess.Popen(popenargs, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, **kwargs)
+                check_io()  # check again to catch anything after the process exits
+
+                rc = child.wait()
+                if rc != 0:
+                    print('{} returned again {}:'.format(popenargs[0], rc), file=sys.stderr)
+                    
+            else:
+                log_error('No .netrc file found in home directory')
+                while True:
+                    if os.path.exists(os.path.expanduser('~/.netrc')):
+                        break
+                    time.sleep(5)
+                    print("Waiting for .netrc file to be created", file=sys.stderr)
+                print("Retrying git clone after updated password from ~/.netrc", file=sys.stderr)
+                # Close file descriptors
+                child.stdout.close()
+                child.stderr.close()
+                child = subprocess.Popen(popenargs, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, **kwargs)
+                check_io()  # check again to catch anything after the process exits
+
+                rc = child.wait()
+                if rc != 0:
+                    print('{} returned again {}:'.format(popenargs[0], rc), file=sys.stderr)
+
             
     # Flush the logs
     if logger:
