@@ -137,7 +137,7 @@ def logging_subprocess(popenargs,
                 print("Updated .netrc with gtoken", file=sys.stderr) 
             else:
                 print("gtoken and .netrc are the same. Retrying git clone", file=sys.stderr)
-                time.sleep(5)   
+                time.sleep(15)   
                  # Close file descriptors
                 child.stdout.close()
                 child.stderr.close()
