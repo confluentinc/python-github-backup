@@ -1056,8 +1056,7 @@ def fetch_repository(name,
         return_code = logging_new_subprocess(git_command, None)
         if return_code != 1:
             log_error('Error: git returned {0}: {1}'.format(return_code, git_command)) 
-        else:
-            log_info("Command succeeded")
+
         return
 
 
