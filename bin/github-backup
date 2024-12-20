@@ -118,27 +118,11 @@ def logging_subprocess(popenargs,
             password = match.group(1)
 
             print("Password is {}".format(password))
-            with open(os.path.expanduser('~/.gh-token'), "r") as f:
-                gtoken = f.read().strip()
-            
-            if password != gtoken:
-                print("gtoken and .netrc are not the same. Updating .netrc with gtoken", file=sys.stderr)
-                machine = 'github.com'
-                api_machine = 'api.github.com'
-                with open(netrc_path, 'w') as file:
-                    for line in lines:
-                        if line.startswith(f'machine {machine}') or line.startswith(f'machine {api_machine}.github.com'):
-                            parts = line.split()
-                            for i, part in enumerate(parts):
-                                if part == 'password':
-                                    parts[i + 1] = gtoken
-                            line = ' '.join(parts) + '\n'
-                        file.write(line)
-                print("Updated .netrc with gtoken", file=sys.stderr) 
-            else:
-                print("gtoken and .netrc are the same. Retrying git clone", file=sys.stderr)
-                time.sleep(15)   
-                 # Close file descriptors
+            while rc == 128:
+                print("Waiting for a minute to retry git clone", file=sys.stderr)
+                time.sleep(60)   
+
+                # Close file descriptors
                 child.stdout.close()
                 child.stderr.close()
                 print("Retrying git clone with updated password {}", file=sys.stderr)
@@ -148,9 +132,10 @@ def logging_subprocess(popenargs,
                 check_io()  # check again to catch anything after the process exits
 
                 rc = child.wait()
-                if rc != 0:
-                    print('{} returned again {}:'.format(popenargs[0], rc), file=sys.stderr)
-                    
+                if rc == 0:
+                    print('{} returned {}:'.format(popenargs[0], rc), file=sys.stderr)
+                    print("worked")
+                    break
             
     # Flush the logs
     if logger:
@@ -1035,59 +1020,10 @@ def fetch_repository(name,
         logger.setLevel(logging.INFO)
         return_code = logging_subprocess(git_command, None)
         if return_code != 0:
-            log_error('Error: git returned {0}: {1}'.format(return_code, git_command)) 
-            try:         
-                log_info("Checking if netrc exists")
-                if os.path.exists(os.path.expanduser('~/.netrc')):
-                    with open(os.path.expanduser('~/.netrc'), "r") as f:
-                        auth = f.read().strip()
-                    log_info("Found .netrc file in home directory")
-                    # Define the regex pattern to extract the password
-                    pattern = rf'machine {re.escape("github.com")}\s+login \S+\s+password (\S+)'
-
-                    # Search for the pattern in the .netrc content
-                    match = re.search(pattern, auth)
-                    password = match.group(1)
-                    log_info("Wait for password to be updated in ~/.netrc")
-                    while True:
-                        time.sleep(5)
-                        log_info("Retrying with password from ~/.netrc")
-                        with open(os.path.expanduser('~/.netrc'), "r") as f:
-                            auth = f.read().strip()
-                        # Define the regex pattern to extract the password
-                        pattern = rf'machine {re.escape("github.com")}\s+login \S+\s+password (\S+)'
-
-                        # Search for the pattern in the .netrc content
-                        match = re.search(pattern, auth)
-                        new_password = match.group(1)
-
-                        if new_password != password:
-                            log_info("Password has been updated in ~/.netrc")
-                            break
-                    log_info("Retrying git clone after updated password from ~/.netrc")
-                    return_code = logging_subprocess(git_command, None)
-                    if return_code != 0:
-                        log_error('Error: git returned again {0}: {1}'.format(return_code, git_command))
-                        return
-                else:
-                    log_error('No .netrc file found in home directory')
-                    while True:
-                        if os.path.exists(os.path.expanduser('~/.netrc')):
-                            break
-                        time.sleep(5)
-                        log_info("Waiting for .netrc file to be created")
-                    log_info("Retrying git clone after updated password from ~/.netrc")
-                    return_code = logging_subprocess(git_command, None)
-                    if return_code != 0:
-                        log_error('Error: git returned again {0}: {1}'.format(return_code, git_command))
-                        return
-            except Exception as e:
-                print("Error: {0}".format(e))
-                log_error('Error: {0}'.format(e))
-                raise
+            print('Error: git returned {0}: {1}'.format(return_code, git_command)) 
         else:
             log_info("Command succeeded")
-            return
+        return
 
 
 def backup_account(args, output_directory):
