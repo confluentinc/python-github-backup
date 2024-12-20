@@ -72,10 +72,8 @@ def logging_new_subprocess(popenargs,
                              stderr=subprocess.PIPE, **kwargs)
         stdout, stderr = child.communicate()
         rc = child.returncode
-        if rc == 0:
-            print('{} returned {}:'.format(popenargs[0], rc), file=sys.stderr)
-            print("worked")
-        elif rc == 128:
+        
+        if rc == 128:
             print('Error 128: Repository already exists or no access')
             print("stderr: {}".format(stderr))
             # Run a simple command
