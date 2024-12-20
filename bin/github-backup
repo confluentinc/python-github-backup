@@ -479,18 +479,28 @@ def retrieve_data(args, template, query_args=None, single_request=False):
         if status_code != 200:
             template = 'API request returned HTTP {0}: {1}'
             errors.append(template.format(status_code, r.reason))
-            log_error(errors)
             if status_code == 401:
                 log_info('Unauthorized access to the API. Please check your credentials.')
                 if os.path.exists(os.path.expanduser('~/.gh_token')):
                     try:
                         with open(os.path.expanduser('~/.gh_token'), "r") as f:
-                            auth = f.read().strip()
-                        request = _construct_request(per_page, page, query_args, template, auth)  # noqa
-                        r, errors = _get_response(request, auth, template)
-                        status_code = int(r.getcode())
+                            new_auth = f.read().strip()
+                        if auth != new_auth:
+                            log_info('Retrying with token from ~/.gh_token')
+                            auth = new_auth
+                            request = _construct_request(per_page, page, query_args, template, auth)  # noqa
+                            r, errors = _get_response(request, auth, template)
+                            status_code = int(r.getcode())
+                        else:
+                            log_info("auth is the same")
+                            time.sleep(30)
+                            with open(os.path.expanduser('~/.gh_token'), "r") as f:
+                                new_auth = f.read().strip()
+                            request = _construct_request(per_page, page, query_args, template, new_auth)  # noqa
+                            r, errors = _get_response(request, auth, template)
+                            status_code = int(r.getcode())
                         if status_code != 200:
-                            template = 'API request returned HTTP {0}: {1}'
+                            template = 'API request again returned HTTP {0}: {1}'
                             errors.append(template.format(status_code, r.reason))
                             log_error(errors)
                         
