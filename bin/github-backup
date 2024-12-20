@@ -78,6 +78,13 @@ def logging_new_subprocess(popenargs,
         elif rc == 128:
             print('Error 128: Repository already exists or no access')
             print("stderr: {}".format(stderr))
+            # Run a simple command
+            print("User config currently set to:")
+            os.system("git config --get user.name")
+
+            # Capture the output of a command
+            result = subprocess.run(["echo", "Hello, World!"], capture_output=True, text=True)
+            print(result.stdout)
             while rc == 128:
                 print("Error 128: Checking access {}".format(err), file=sys.stderr)
                 print("Waiting for a minute to retry git clone", file=sys.stderr)
