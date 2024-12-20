@@ -57,6 +57,50 @@ def log_info(message):
         sys.stdout.write("{0}\n".format(msg))
 
 
+def logging_new_subprocess(popenargs,
+                       logger,
+                       stdout_log_level=logging.DEBUG,
+                       stderr_log_level=logging.ERROR,
+                       **kwargs):
+    """
+    Variant of subprocess.call that accepts a logger instead of stdout/stderr,
+    and logs stdout messages via logger.debug and stderr messages via
+    logger.error.
+    """
+    try: 
+        child = subprocess.Popen(popenargs, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, **kwargs)
+        stdout, stderr = child.communicate()
+        rc = child.returncode
+        if rc == 0:
+            print('{} returned {}:'.format(popenargs[0], rc), file=sys.stderr)
+            print("worked")
+        elif rc == 128:
+            print('Error 128: Repository already exists or no access')
+            print("stderr: {}".format(stderr))
+            while rc == 128:
+                print("Error 128: Checking access {}".format(err), file=sys.stderr)
+                print("Waiting for a minute to retry git clone", file=sys.stderr)
+                time.sleep(60)   
+                child = subprocess.Popen(popenargs, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, **kwargs)
+                stdout, stderr = child.communicate()
+                rc = child.returncode
+                if rc == 0:
+                    print('{} returned {}:'.format(popenargs[0], rc), file=sys.stderr)
+                    print("worked")
+                    break
+        
+    except subprocess.CalledProcessError as e:
+        print("Error: {}".format(e))
+        print("Return code:", e.returncode)
+        print("Standard output:", e.stdout)
+        print("Standard error:", e.stderr)
+        
+       
+    return 1    
+    
+    
 def logging_subprocess(popenargs,
                        logger,
                        stdout_log_level=logging.DEBUG,
@@ -93,13 +137,9 @@ def logging_subprocess(popenargs,
             if not (io == child.stderr and not line):
                 logger.log(log_level[io], line[:-1])
 
-    # keep checking stdout/stderr until the child exits
-    while child.poll() is None:
-        check_io()
-
-    check_io()  # check again to catch anything after the process exits
-
     out, err = child.communicate()
+    print("Output from child: {}".format(out))
+    log_error("Error from child: {}".format(err))
     if err:
         print('error while running command: {}'.format(popenargs[0]), file=sys.stderr)
     rc = child.returncode
@@ -1008,9 +1048,9 @@ def fetch_repository(name,
         handler.setLevel(logging.INFO)  # Explicitly set the handler's log level
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
-        return_code = logging_subprocess(git_command, None)
-        if return_code != 0:
-            print('Error: git returned {0}: {1}'.format(return_code, git_command)) 
+        return_code = logging_new_subprocess(git_command, None)
+        if return_code != 1:
+            log_error('Error: git returned {0}: {1}'.format(return_code, git_command)) 
         else:
             log_info("Command succeeded")
         return
