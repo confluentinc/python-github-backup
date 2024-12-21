@@ -461,6 +461,16 @@ def get_github_repo_url(args, repository):
 
     return repo_url
 
+def _update_token(current_token):
+    if os.path.exists(os.path.expanduser('~/.gh-token')):
+        with open(os.path.expanduser('~/.gh-token'), "r") as f:
+            new_token = f.read().strip()
+        if current_token != new_token:
+            return new_token
+    else:
+        log_error('No token found in ~/.gh-token')
+    return current_token
+
 
 def retrieve_data(args, template, query_args=None, single_request=False):
     auth = get_auth(args)
@@ -471,6 +481,8 @@ def retrieve_data(args, template, query_args=None, single_request=False):
 
     while True:
         page = page + 1
+
+        auth = _update_token(auth)
         request = _construct_request(per_page, page, query_args, template, auth)  # noqa
         r, errors = _get_response(request, auth, template)
 
@@ -479,36 +491,7 @@ def retrieve_data(args, template, query_args=None, single_request=False):
         if status_code != 200:
             err_template = 'API request returned HTTP {0}: {1}'
             errors.append(err_template.format(status_code, r.reason))
-            if status_code == 401:
-                log_info('Unauthorized access to the API. Please check your credentials.')
-                if os.path.exists(os.path.expanduser('~/.gh-token')):
-                    try:
-                        with open(os.path.expanduser('~/.gh-token'), "r") as f:
-                            new_auth = f.read().strip()
-                        if auth != new_auth:
-                            log_info('Retrying with token from ~/.gh-token')
-                            auth = new_auth
-                            request = _construct_request(per_page, page, query_args, template, auth)  # noqa
-                            r, errors = _get_response(request, auth, template)
-                            status_code = int(r.getcode())
-                        else:
-                            log_info("auth is the same")
-                            time.sleep(30)
-                            with open(os.path.expanduser('~/.gh-token'), "r") as f:
-                                new_auth = f.read().strip()
-                            request = _construct_request(per_page, page, query_args, template, new_auth)  # noqa
-                            r, errors = _get_response(request, auth, template)
-                            status_code = int(r.getcode())
-                        if status_code != 200:
-                            err_template = 'API request again returned HTTP {0}: {1}'
-                            errors.append(err_template.format(status_code, r.reason))
-                            log_error(errors)
-                        
-                    except Exception as e:
-                        log_error('Error: {0}'.format(e))
-                else:
-                    log_error('No token found in ~/.gh-token')
-
+    
         response = json.loads(r.read().decode('utf-8'))
         if len(errors) == 0:
             if type(response) == list:
@@ -549,26 +532,6 @@ def _get_response(request, auth, template):
             should_continue = _request_url_error(template, retry_timeout)
             if not should_continue:
                 raise
-        except Exception as GitErr:
-            log_error("Exception {}".format(GitErr))
-            if 'git returned 128:' in GitErr:
-                log_error('Found error 128. Skipping.')
-                if os.path.exists(os.path.expanduser('~/.gh-token')):
-                    try:
-                        with open(os.path.expanduser('~/.gh-token'), "r") as f:
-                            auth = f.read().strip()
-                            os.setenv('GH_TOKEN', auth)
-                            os.setenv('GITHUB_TOKEN', auth)
-                            log_info('Retrying with token from ~/.gh-token')
-                            log_info("token is {}".format(auth))
-                        request = _construct_request(per_page, page, query_args, template, auth)  # noqa
-
-                        r = urlopen(request)
-                        
-                    except Exception as e:
-                        log_error('Error: {0}'.format(e))
-                else:
-                    log_error('No token found in ~/.gh_token')
 
         if should_continue:
             continue
