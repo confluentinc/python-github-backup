@@ -481,12 +481,12 @@ def retrieve_data(args, template, query_args=None, single_request=False):
             errors.append(template.format(status_code, r.reason))
             if status_code == 401:
                 log_info('Unauthorized access to the API. Please check your credentials.')
-                if os.path.exists(os.path.expanduser('~/.gh_token')):
+                if os.path.exists(os.path.expanduser('~/.gh-token')):
                     try:
-                        with open(os.path.expanduser('~/.gh_token'), "r") as f:
+                        with open(os.path.expanduser('~/.gh-token'), "r") as f:
                             new_auth = f.read().strip()
                         if auth != new_auth:
-                            log_info('Retrying with token from ~/.gh_token')
+                            log_info('Retrying with token from ~/.gh-token')
                             auth = new_auth
                             request = _construct_request(per_page, page, query_args, template, auth)  # noqa
                             r, errors = _get_response(request, auth, template)
@@ -494,7 +494,7 @@ def retrieve_data(args, template, query_args=None, single_request=False):
                         else:
                             log_info("auth is the same")
                             time.sleep(30)
-                            with open(os.path.expanduser('~/.gh_token'), "r") as f:
+                            with open(os.path.expanduser('~/.gh-token'), "r") as f:
                                 new_auth = f.read().strip()
                             request = _construct_request(per_page, page, query_args, template, new_auth)  # noqa
                             r, errors = _get_response(request, auth, template)
@@ -507,7 +507,7 @@ def retrieve_data(args, template, query_args=None, single_request=False):
                     except Exception as e:
                         log_error('Error: {0}'.format(e))
                 else:
-                    log_error('No token found in ~/.gh_token')
+                    log_error('No token found in ~/.gh-token')
 
         response = json.loads(r.read().decode('utf-8'))
         if len(errors) == 0:
