@@ -477,8 +477,8 @@ def retrieve_data(args, template, query_args=None, single_request=False):
         status_code = int(r.getcode())
 
         if status_code != 200:
-            template = 'API request returned HTTP {0}: {1}'
-            errors.append(template.format(status_code, r.reason))
+            err_template = 'API request returned HTTP {0}: {1}'
+            errors.append(err_template.format(status_code, r.reason))
             if status_code == 401:
                 log_info('Unauthorized access to the API. Please check your credentials.')
                 if os.path.exists(os.path.expanduser('~/.gh-token')):
@@ -500,8 +500,8 @@ def retrieve_data(args, template, query_args=None, single_request=False):
                             r, errors = _get_response(request, auth, template)
                             status_code = int(r.getcode())
                         if status_code != 200:
-                            template = 'API request again returned HTTP {0}: {1}'
-                            errors.append(template.format(status_code, r.reason))
+                            err_template = 'API request again returned HTTP {0}: {1}'
+                            errors.append(err_template.format(status_code, r.reason))
                             log_error(errors)
                         
                     except Exception as e:
@@ -553,13 +553,13 @@ def _get_response(request, auth, template):
             log_error("Exception {}".format(GitErr))
             if 'git returned 128:' in GitErr:
                 log_error('Found error 128. Skipping.')
-                if os.path.exists(os.path.expanduser('~/.gh_token')):
+                if os.path.exists(os.path.expanduser('~/.gh-token')):
                     try:
-                        with open(os.path.expanduser('~/.gh_token'), "r") as f:
+                        with open(os.path.expanduser('~/.gh-token'), "r") as f:
                             auth = f.read().strip()
                             os.setenv('GH_TOKEN', auth)
                             os.setenv('GITHUB_TOKEN', auth)
-                            log_info('Retrying with token from ~/.gh_token')
+                            log_info('Retrying with token from ~/.gh-token')
                             log_info("token is {}".format(auth))
                         request = _construct_request(per_page, page, query_args, template, auth)  # noqa
 
