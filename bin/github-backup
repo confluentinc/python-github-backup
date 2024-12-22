@@ -38,6 +38,12 @@ from github_backup import __version__
 
 FNULL = open(os.devnull, 'w')
 
+# Cache to store the token and the last modification time
+_token_cache = {
+    'token': None,
+    'last_modified': 0
+}
+
 
 def log_error(message):
     if type(message) == str:
@@ -462,13 +468,23 @@ def get_github_repo_url(args, repository):
     return repo_url
 
 def _update_token(current_token):
-    if os.path.exists(os.path.expanduser('~/.gh-token')):
-        with open(os.path.expanduser('~/.gh-token'), "r") as f:
-            new_token = f.read().strip()
-        if current_token != new_token:
-            return new_token
+    global _token_cache
+    token_path = os.path.expanduser('~/.gh-token')
+
+    if os.path.exists(token_path):
+        last_modified = os.path.getmtime(token_path)
+
+        if last_modified > _token_cache['last_modified']:
+            with open(token_path, "r") as f:
+                new_token = f.read().strip()
+            _token_cache['token'] = new_token
+            _token_cache['last_modified'] = last_modified
+
+        if current_token != _token_cache['token']:
+            return _token_cache['token']
     else:
         log_error('No token found in ~/.gh-token')
+
     return current_token
 
 
