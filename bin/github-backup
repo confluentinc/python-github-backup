@@ -495,10 +495,11 @@ def retrieve_data(args, template, query_args=None, single_request=False):
     page = 0
     data = []
 
+    auth = _update_token(auth)
+
     while True:
         page = page + 1
 
-        auth = _update_token(auth)
         request = _construct_request(per_page, page, query_args, template, auth)  # noqa
         r, errors = _get_response(request, auth, template)
 
@@ -507,7 +508,16 @@ def retrieve_data(args, template, query_args=None, single_request=False):
         if status_code != 200:
             err_template = 'API request returned HTTP {0}: {1}'
             errors.append(err_template.format(status_code, r.reason))
-    
+            if status_code == 401:
+                auth = _update_token(auth)
+                request = _construct_request(per_page, page, query_args, template, auth)  # noqa
+                r, errors = _get_response(request, auth, template)
+
+                status_code = int(r.getcode())
+                if status_code != 200:
+                    err_template = 'API request returned HTTP {0}: {1}'
+                    errors.append(err_template.format(status_code, r.reason))
+
         response = json.loads(r.read().decode('utf-8'))
         if len(errors) == 0:
             if type(response) == list:
@@ -1123,6 +1133,9 @@ def main():
 
     # authenticated_user = get_authenticated_user(args)
     repositories = retrieve_repositories(args)
+    if len(repositories) == 0:
+        log_error('No repositories found')
+        sys.exit(1)
     repositories = filter_repositories(args, repositories)
     backup_repositories(args, output_directory, repositories)
     backup_account(args, output_directory)
