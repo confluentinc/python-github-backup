@@ -1134,6 +1134,7 @@ def main():
     # authenticated_user = get_authenticated_user(args)
     repositories = retrieve_repositories(args)
     repositories = filter_repositories(args, repositories)
+    log_info("Found {0} repositories to backup".format(len(repositories)))
     backup_repositories(args, output_directory, repositories)
     backup_account(args, output_directory)
 
