@@ -1133,9 +1133,6 @@ def main():
 
     # authenticated_user = get_authenticated_user(args)
     repositories = retrieve_repositories(args)
-    if len(repositories) == 0:
-        log_error('No repositories found')
-        sys.exit(1)
     repositories = filter_repositories(args, repositories)
     backup_repositories(args, output_directory, repositories)
     backup_account(args, output_directory)
