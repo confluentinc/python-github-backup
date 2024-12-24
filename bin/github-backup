@@ -328,6 +328,7 @@ def get_auth(args, encode=True):
         if args.token.startswith(_path_specifier):
             args.token = open(args.token[len(_path_specifier):],
                               'rt').readline().strip()
+        # Return the token as is                      
         return args.token
 
     elif args.username:
@@ -561,14 +562,15 @@ def check_git_lfs_install():
 def retrieve_repositories(args, authenticated_user):
     log_info('Retrieving repositories')
     single_request = False
-    if args.user == authenticated_user['login']:
-        # we must use the /user/repos API to be able to access private repos
-        template = 'https://{0}/user/repos'.format(
-            get_github_api_host(args))
-    else:
-        template = 'https://{0}/users/{1}/repos'.format(
-            get_github_api_host(args),
-            args.user)
+    if authenticated_user:
+        if args.user == authenticated_user['login']:
+            # we must use the /user/repos API to be able to access private repos
+            template = 'https://{0}/user/repos'.format(
+                get_github_api_host(args))
+        else:
+            template = 'https://{0}/users/{1}/repos'.format(
+                get_github_api_host(args),
+                args.user)
 
     if args.organization:
         template = 'https://{0}/orgs/{1}/repos'.format(
@@ -1038,8 +1040,13 @@ def main():
 
     log_info('Backing up user {0} to {1}'.format(args.user, output_directory))
 
-    authenticated_user = get_authenticated_user(args)
-    repositories = retrieve_repositories(args, authenticated_user)
+    if args.token:
+        log_info('Using token authentication')
+        repositories = retrieve_repositories(args, None)
+    elif args.username:
+        log_info('Using basic authentication with username {0}'.format(args.username))
+        authenticated_user = get_authenticated_user(args)
+        repositories = retrieve_repositories(args, authenticated_user)
     repositories = filter_repositories(args, repositories)
     backup_repositories(args, output_directory, repositories)
     backup_account(args, output_directory)
