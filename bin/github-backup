@@ -38,6 +38,11 @@ from github_backup import __version__
 
 FNULL = open(os.devnull, 'w')
 
+_token_cache = {
+    'token': None,
+    'last_modified': 0
+}
+
 
 def log_error(message):
     if type(message) == str:
@@ -323,7 +328,8 @@ def get_auth(args, encode=True):
         if args.token.startswith(_path_specifier):
             args.token = open(args.token[len(_path_specifier):],
                               'rt').readline().strip()
-        auth = args.token + ':' + 'x-oauth-basic'
+        return args.token
+
     elif args.username:
         if not args.password:
             args.password = getpass.getpass()
@@ -382,6 +388,27 @@ def get_github_repo_url(args, repository):
     return repo_url
 
 
+def _update_githubapp_token(current_token):
+    global _token_cache
+    token_path = os.path.expanduser('~/.gh-token')
+
+    if os.path.exists(token_path):
+        last_modified = os.path.getmtime(token_path)
+
+        if last_modified > _token_cache['last_modified']:
+            with open(token_path, "r") as f:
+                new_token = f.read().strip()
+            _token_cache['token'] = new_token
+            _token_cache['last_modified'] = last_modified
+
+        if current_token != _token_cache['token']:
+            return _token_cache['token']
+    else:
+        log_error('No token found in ~/.gh-token')
+
+    return current_token
+
+
 def retrieve_data(args, template, query_args=None, single_request=False):
     auth = get_auth(args)
     query_args = get_query_args(query_args)
@@ -389,6 +416,8 @@ def retrieve_data(args, template, query_args=None, single_request=False):
     page = 0
     data = []
 
+    auth = _update_githubapp_token(auth)
+ 
     while True:
         page = page + 1
         request = _construct_request(per_page, page, query_args, template, auth)  # noqa
@@ -397,9 +426,18 @@ def retrieve_data(args, template, query_args=None, single_request=False):
         status_code = int(r.getcode())
 
         if status_code != 200:
-            template = 'API request returned HTTP {0}: {1}'
-            errors.append(template.format(status_code, r.reason))
-            log_error(errors)
+            err_template = 'API request returned HTTP {0}: {1}'
+            errors.append(err_template.format(status_code, r.reason))
+            if status_code == 401:
+                auth = _update_githubapp_token(auth)
+                request = _construct_request(per_page, page, query_args, template, auth)  # noqa
+                r, errors = _get_response(request, auth, template)
+
+                status_code = int(r.getcode())
+                if status_code != 200:
+                    err_template = 'API request returned HTTP {0}: {1}'
+                    errors.append(err_template.format(status_code, r.reason))
+                    log_error(errors)
 
         response = json.loads(r.read().decode('utf-8'))
         if len(errors) == 0:
@@ -457,7 +495,7 @@ def _construct_request(per_page, page, query_args, template, auth):
 
     request = Request(template + '?' + querystring)
     if auth is not None:
-        request.add_header('Authorization', 'Basic '.encode('ascii') + auth)
+        request.add_header('Authorization', 'Bearer ' + auth)
     log_info('Requesting {}?{}'.format(template, querystring))
     return request
 
