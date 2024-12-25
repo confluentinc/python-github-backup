@@ -422,7 +422,11 @@ def retrieve_data(args, template, query_args=None, single_request=False):
  
     while True:
         page = page + 1
-        request = _construct_request(per_page, page, query_args, template, auth)  # noqa
+        request = _construct_request(per_page, page, query_args, template)
+        if args.token and auth is not None:
+            request.add_header('Authorization', 'Bearer ' + auth)  # noqa
+        elif args.username and auth is not None:
+            request.add_header('Authorization', 'Basic '.encode('ascii') + auth)
         r, errors = _get_response(request, auth, template)
 
         status_code = int(r.getcode())
@@ -433,7 +437,9 @@ def retrieve_data(args, template, query_args=None, single_request=False):
             if status_code == 401:
                 if args.token:
                     auth = _update_githubapp_token(auth)
-                    request = _construct_request(per_page, page, query_args, template, auth)  # noqa
+                    request = _construct_request(per_page, page, query_args, template)  # noqa
+                    if auth is not None:
+                        request.add_header('Authorization', 'Bearer ' + auth)
                     r, errors = _get_response(request, auth, template)
 
                     status_code = int(r.getcode())
@@ -493,15 +499,14 @@ def _get_response(request, auth, template):
     return r, errors
 
 
-def _construct_request(per_page, page, query_args, template, auth):
+def _construct_request(per_page, page, query_args, template):
     querystring = urlencode(dict(list({
         'per_page': per_page,
         'page': page
     }.items()) + list(query_args.items())))
 
     request = Request(template + '?' + querystring)
-    if auth is not None:
-        request.add_header('Authorization', 'Bearer ' + auth)
+    
     log_info('Requesting {}?{}'.format(template, querystring))
     return request
 
