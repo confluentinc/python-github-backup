@@ -417,7 +417,8 @@ def retrieve_data(args, template, query_args=None, single_request=False):
     page = 0
     data = []
 
-    auth = _update_githubapp_token(auth)
+    if args.token:
+        auth = _update_githubapp_token(auth)
  
     while True:
         page = page + 1
@@ -430,15 +431,19 @@ def retrieve_data(args, template, query_args=None, single_request=False):
             err_template = 'API request returned HTTP {0}: {1}'
             errors.append(err_template.format(status_code, r.reason))
             if status_code == 401:
-                auth = _update_githubapp_token(auth)
-                request = _construct_request(per_page, page, query_args, template, auth)  # noqa
-                r, errors = _get_response(request, auth, template)
+                if args.token:
+                    auth = _update_githubapp_token(auth)
+                    request = _construct_request(per_page, page, query_args, template, auth)  # noqa
+                    r, errors = _get_response(request, auth, template)
 
-                status_code = int(r.getcode())
-                if status_code != 200:
-                    err_template = 'API request returned HTTP {0}: {1}'
-                    errors.append(err_template.format(status_code, r.reason))
+                    status_code = int(r.getcode())
+                    if status_code != 200:
+                        err_template = 'API request returned HTTP {0}: {1}'
+                        errors.append(err_template.format(status_code, r.reason))
+                        log_error(errors)
+                else:
                     log_error(errors)
+                
 
         response = json.loads(r.read().decode('utf-8'))
         if len(errors) == 0:
