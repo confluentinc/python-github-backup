@@ -426,6 +426,7 @@ def retrieve_data(args, template, query_args=None, single_request=False):
         if args.token and auth is not None:
             request.add_header('Authorization', 'Bearer ' + auth)  # noqa
         elif args.username and auth is not None:
+            print("Have auth initialized")
             request.add_header('Authorization', 'Basic '.encode('ascii') + auth)
         r, errors = _get_response(request, auth, template)
 
