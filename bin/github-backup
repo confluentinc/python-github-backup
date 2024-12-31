@@ -431,7 +431,6 @@ def retrieve_data(args, template, query_args=None, single_request=False):
             log_info("Auth is initialized")
             log_info("Adding to header")
             request.add_header('Authorization', 'Basic '.encode('ascii') + auth)
-        elif args.username and auth is None:
         r, errors = _get_response(request, auth, template)
 
         status_code = int(r.getcode())
