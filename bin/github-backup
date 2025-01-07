@@ -403,12 +403,10 @@ def _update_githubapp_token(current_token):
             _token_cache['token'] = new_token
             _token_cache['last_modified'] = last_modified
 
-        if current_token != _token_cache['token']:
-            return _token_cache['token']
+            if current_token != new_token:
+                return new_token
     else:
         log_error('No token found in ~/.gh-token')
-
-    return current_token
 
 
 def retrieve_data(args, template, query_args=None, single_request=False):
