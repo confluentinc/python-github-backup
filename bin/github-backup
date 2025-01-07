@@ -333,9 +333,6 @@ def get_auth(args, encode=True):
                               'rt').readline().strip()
         auth["token"] = args.token                    
     
-        # Return the token as is                      
-        return auth
-
     elif args.username:
         if not args.password:
             args.password = getpass.getpass()
@@ -422,9 +419,6 @@ def retrieve_data(args, template, query_args=None, single_request=False):
     page = 0
     data = []
 
-    if args.token:
-        auth = _update_githubapp_token(auth)
- 
     while True:
         page = page + 1
         request = _construct_request(per_page, page, query_args, template, auth)
@@ -492,12 +486,12 @@ def _construct_request(per_page, page, query_args, template, auth):
     }.items()) + list(query_args.items())))
 
     request = Request(template + '?' + querystring)
-    auth = _update_githubapp_token(auth)
     if auth:
         if 'token' in auth:
-            request.add_header('Authorization', 'Bearer ' + auth)  # noqa
+            new_token = _update_githubapp_token(auth['token'])
+            request.add_header('Authorization', 'Bearer ' + new_token)  # noqa
         elif 'basic_auth' in auth:
-            request.add_header('Authorization', 'Basic '.encode('ascii') + auth)
+            request.add_header('Authorization', 'Basic '.encode('ascii') + auth['basic_auth'])  # noqa
 
     log_info('Requesting {}?{}'.format(template, querystring))
     return request
