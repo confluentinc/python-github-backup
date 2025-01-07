@@ -393,7 +393,7 @@ def get_github_repo_url(args, repository):
 def _update_githubapp_token(current_token):
     global _token_cache
     token_path = os.path.expanduser('~/.gh-token')
-
+    # Default to the current token
     new_token = current_token
     if os.path.exists(token_path):
         last_modified = os.path.getmtime(token_path)
