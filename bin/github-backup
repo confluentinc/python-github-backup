@@ -303,7 +303,7 @@ def parse_args():
 
 
 def get_auth(args, encode=True):
-    auth = None
+    auth = {}
 
     if args.osx_keychain_item_name:
         if not args.osx_keychain_item_account:
@@ -318,7 +318,10 @@ def get_auth(args, encode=True):
                         '-s', args.osx_keychain_item_name,
                         '-a', args.osx_keychain_item_account,
                         '-w'], stderr=devnull).strip())
-                auth = token + ':' + 'x-oauth-basic'
+                auth["basic_auth"] = token + ':' + 'x-oauth-basic'
+                if encode:
+                    auth["basic_auth"] = base64.b64encode(auth["basic_auth"].encode('ascii'))
+                
             except:
                 log_error('No password item matching the provided name and account could be found in the osx keychain.')
     elif args.osx_keychain_item_account:
@@ -328,8 +331,10 @@ def get_auth(args, encode=True):
         if args.token.startswith(_path_specifier):
             args.token = open(args.token[len(_path_specifier):],
                               'rt').readline().strip()
+        auth["token"] = args.token                    
+    
         # Return the token as is                      
-        return args.token
+        return auth
 
     elif args.username:
         if not args.password:
@@ -338,17 +343,16 @@ def get_auth(args, encode=True):
             password = args.password
         else:
             password = urlquote(args.password)
-        auth = args.username + ':' + password
-    elif args.password:
+        auth["basic_auth"] = args.username + ':' + password
+        if encode:
+            auth["basic_auth"] = base64.b64encode(auth["basic_auth"].encode('ascii'))
+
         log_error('You must specify a username for basic auth')
 
     if not auth:
         return None
 
-    if not encode:
-        return auth
-
-    return base64.b64encode(auth.encode('ascii'))
+    return auth
 
 
 def get_github_api_host(args):
@@ -423,37 +427,15 @@ def retrieve_data(args, template, query_args=None, single_request=False):
  
     while True:
         page = page + 1
-        request = _construct_request(per_page, page, query_args, template)
-        if args.token and auth is not None:
-            request.add_header('Authorization', 'Bearer ' + auth)  # noqa
-        elif args.username and auth is not None:
-            print("Have auth initialized")
-            log_info("Auth is initialized")
-            log_info("Adding to header")
-            request.add_header('Authorization', 'Basic '.encode('ascii') + auth)
+        request = _construct_request(per_page, page, query_args, template, auth)
+       
         r, errors = _get_response(request, auth, template)
 
         status_code = int(r.getcode())
 
         if status_code != 200:
             err_template = 'API request returned HTTP {0}: {1}'
-            errors.append(err_template.format(status_code, r.reason))
-            if status_code == 401:
-                if args.token:
-                    auth = _update_githubapp_token(auth)
-                    request = _construct_request(per_page, page, query_args, template)  # noqa
-                    if auth is not None:
-                        request.add_header('Authorization', 'Bearer ' + auth)
-                    r, errors = _get_response(request, auth, template)
-
-                    status_code = int(r.getcode())
-                    if status_code != 200:
-                        err_template = 'API request returned HTTP {0}: {1}'
-                        errors.append(err_template.format(status_code, r.reason))
-                        log_error(errors)
-                else:
-                    log_error(errors)
-                
+            errors.append(err_template.format(status_code, r.reason))                
 
         response = json.loads(r.read().decode('utf-8'))
         if len(errors) == 0:
@@ -503,14 +485,20 @@ def _get_response(request, auth, template):
     return r, errors
 
 
-def _construct_request(per_page, page, query_args, template):
+def _construct_request(per_page, page, query_args, template, auth):
     querystring = urlencode(dict(list({
         'per_page': per_page,
         'page': page
     }.items()) + list(query_args.items())))
 
     request = Request(template + '?' + querystring)
-    
+    auth = _update_githubapp_token(auth)
+    if auth:
+        if 'token' in auth:
+            request.add_header('Authorization', 'Bearer ' + auth)  # noqa
+        elif 'basic_auth' in auth:
+            request.add_header('Authorization', 'Basic '.encode('ascii') + auth)
+
     log_info('Requesting {}?{}'.format(template, querystring))
     return request
 
