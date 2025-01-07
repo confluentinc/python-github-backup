@@ -487,6 +487,7 @@ def _construct_request(per_page, page, query_args, template, auth):
     if auth:
         if 'token' in auth:
             new_token = _update_githubapp_token(auth['token'])
+            auth['token'] = new_token
             request.add_header('Authorization', 'Bearer ' + new_token)  # noqa
         elif 'basic_auth' in auth:
             request.add_header('Authorization', 'Basic '.encode('ascii') + auth['basic_auth'])  # noqa
