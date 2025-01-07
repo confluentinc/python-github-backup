@@ -405,6 +405,8 @@ def _update_githubapp_token(current_token):
 
             if current_token != new_token:
                 return new_token
+            
+            return current_token
     else:
         log_error('No token found in ~/.gh-token')
 
