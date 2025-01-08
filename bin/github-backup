@@ -38,6 +38,11 @@ from github_backup import __version__
 
 FNULL = open(os.devnull, 'w')
 
+_token_cache = {
+    'token': None,
+    'last_modified': 0
+}
+
 
 def log_error(message):
     if type(message) == str:
@@ -298,7 +303,7 @@ def parse_args():
 
 
 def get_auth(args, encode=True):
-    auth = None
+    auth = {}
 
     if args.osx_keychain_item_name:
         if not args.osx_keychain_item_account:
@@ -313,7 +318,10 @@ def get_auth(args, encode=True):
                         '-s', args.osx_keychain_item_name,
                         '-a', args.osx_keychain_item_account,
                         '-w'], stderr=devnull).strip())
-                auth = token + ':' + 'x-oauth-basic'
+                auth["basic_auth"] = token + ':' + 'x-oauth-basic'
+                if encode:
+                    auth["basic_auth"] = base64.b64encode(auth["basic_auth"].encode('ascii'))
+                
             except:
                 log_error('No password item matching the provided name and account could be found in the osx keychain.')
     elif args.osx_keychain_item_account:
@@ -323,7 +331,8 @@ def get_auth(args, encode=True):
         if args.token.startswith(_path_specifier):
             args.token = open(args.token[len(_path_specifier):],
                               'rt').readline().strip()
-        auth = args.token + ':' + 'x-oauth-basic'
+        auth["token"] = args.token                    
+    
     elif args.username:
         if not args.password:
             args.password = getpass.getpass()
@@ -331,17 +340,16 @@ def get_auth(args, encode=True):
             password = args.password
         else:
             password = urlquote(args.password)
-        auth = args.username + ':' + password
-    elif args.password:
+        auth["basic_auth"] = args.username + ':' + password
+        if encode:
+            auth["basic_auth"] = base64.b64encode(auth["basic_auth"].encode('ascii'))
+
         log_error('You must specify a username for basic auth')
 
     if not auth:
         return None
 
-    if not encode:
-        return auth
-
-    return base64.b64encode(auth.encode('ascii'))
+    return auth
 
 
 def get_github_api_host(args):
@@ -382,8 +390,31 @@ def get_github_repo_url(args, repository):
     return repo_url
 
 
+def _update_githubapp_token(current_token):
+    global _token_cache
+    token_path = os.path.expanduser('~/.gh-token')
+    # Default to the current token
+    if os.path.exists(token_path):
+        last_modified = os.path.getmtime(token_path)
+
+        if last_modified > _token_cache['last_modified']:
+            with open(token_path, "r") as f:
+                new_token = f.read().strip()
+            log_info('Token updated from ~/.gh-token')
+            _token_cache['token'] = new_token
+            _token_cache['last_modified'] = last_modified
+
+        if current_token != _token_cache['token']:
+            return _token_cache['token']
+        
+        return current_token
+    else:
+        log_error('No token found in ~/.gh-token')
+
+
 def retrieve_data(args, template, query_args=None, single_request=False):
     auth = get_auth(args)
+    
     query_args = get_query_args(query_args)
     per_page = 100
     page = 0
@@ -391,16 +422,16 @@ def retrieve_data(args, template, query_args=None, single_request=False):
 
     while True:
         page = page + 1
-        request = _construct_request(per_page, page, query_args, template, auth)  # noqa
+        request = _construct_request(per_page, page, query_args, template, auth)
+       
         r, errors = _get_response(request, auth, template)
-
         status_code = int(r.getcode())
 
         if status_code != 200:
-            template = 'API request returned HTTP {0}: {1}'
-            errors.append(template.format(status_code, r.reason))
+            err_template = 'API request returned HTTP {0}: {1}'
+            errors.append(err_template.format(status_code, r.reason))
             log_error(errors)
-
+            
         response = json.loads(r.read().decode('utf-8'))
         if len(errors) == 0:
             if type(response) == list:
@@ -456,8 +487,13 @@ def _construct_request(per_page, page, query_args, template, auth):
     }.items()) + list(query_args.items())))
 
     request = Request(template + '?' + querystring)
-    if auth is not None:
-        request.add_header('Authorization', 'Basic '.encode('ascii') + auth)
+    if auth:
+        if 'token' in auth:
+            auth['token']= _update_githubapp_token(auth['token'])
+            request.add_header('Authorization', 'Bearer ' + auth['token'])  # noqa
+        elif 'basic_auth' in auth:
+            request.add_header('Authorization', 'Basic '.encode('ascii') + auth['basic_auth'])  # noqa
+
     log_info('Requesting {}?{}'.format(template, querystring))
     return request
 
@@ -523,14 +559,15 @@ def check_git_lfs_install():
 def retrieve_repositories(args, authenticated_user):
     log_info('Retrieving repositories')
     single_request = False
-    if args.user == authenticated_user['login']:
-        # we must use the /user/repos API to be able to access private repos
-        template = 'https://{0}/user/repos'.format(
-            get_github_api_host(args))
-    else:
-        template = 'https://{0}/users/{1}/repos'.format(
-            get_github_api_host(args),
-            args.user)
+    if authenticated_user:
+        if args.user == authenticated_user['login']:
+            # we must use the /user/repos API to be able to access private repos
+            template = 'https://{0}/user/repos'.format(
+                get_github_api_host(args))
+        else:
+            template = 'https://{0}/users/{1}/repos'.format(
+                get_github_api_host(args),
+                args.user)
 
     if args.organization:
         template = 'https://{0}/orgs/{1}/repos'.format(
@@ -1000,8 +1037,13 @@ def main():
 
     log_info('Backing up user {0} to {1}'.format(args.user, output_directory))
 
-    authenticated_user = get_authenticated_user(args)
-    repositories = retrieve_repositories(args, authenticated_user)
+    if args.token:
+        log_info('Using token authentication')
+        repositories = retrieve_repositories(args, None)
+    elif args.username:
+        log_info('Using basic authentication with username {0}'.format(args.username))
+        authenticated_user = get_authenticated_user(args)
+        repositories = retrieve_repositories(args, authenticated_user)
     repositories = filter_repositories(args, repositories)
     backup_repositories(args, output_directory, repositories)
     backup_account(args, output_directory)
