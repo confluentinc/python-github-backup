@@ -425,26 +425,13 @@ def retrieve_data(args, template, query_args=None, single_request=False):
         request = _construct_request(per_page, page, query_args, template, auth)
        
         r, errors = _get_response(request, auth, template)
-
         status_code = int(r.getcode())
 
         if status_code != 200:
             err_template = 'API request returned HTTP {0}: {1}'
-            if status_code == 401:
-                if args.token:
-                    auth['token'] = _update_githubapp_token(auth['token'])
-                    request = _construct_request(per_page, page, query_args, template, auth)  # noqa
-                    r, errors = _get_response(request, auth, template)
-
-                    status_code = int(r.getcode())
-                    if status_code != 200:
-                        err_template = 'API request returned HTTP again {0}: {1}'
-                        errors.append(err_template.format(status_code, r.reason))
-                        log_error(errors)
-                else:
-                    log_error(errors)
-            errors.append(err_template.format(status_code, r.reason))                
-
+            errors.append(err_template.format(status_code, r.reason))
+            log_error(errors)
+            
         response = json.loads(r.read().decode('utf-8'))
         if len(errors) == 0:
             if type(response) == list:
