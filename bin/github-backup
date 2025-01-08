@@ -401,6 +401,7 @@ def _update_githubapp_token(current_token):
         if last_modified > _token_cache['last_modified']:
             with open(token_path, "r") as f:
                 new_token = f.read().strip()
+            log_info('Token updated from ~/.gh-token')
             _token_cache['token'] = new_token
             _token_cache['last_modified'] = last_modified
         
@@ -427,6 +428,19 @@ def retrieve_data(args, template, query_args=None, single_request=False):
 
         if status_code != 200:
             err_template = 'API request returned HTTP {0}: {1}'
+            if status_code == 401:
+                if args.token:
+                    auth['token'] = _update_githubapp_token(auth['token'])
+                    request = _construct_request(per_page, page, query_args, template, auth)  # noqa
+                    r, errors = _get_response(request, auth, template)
+
+                    status_code = int(r.getcode())
+                    if status_code != 200:
+                        err_template = 'API request returned HTTP again {0}: {1}'
+                        errors.append(err_template.format(status_code, r.reason))
+                        log_error(errors)
+                else:
+                    log_error(errors)
             errors.append(err_template.format(status_code, r.reason))                
 
         response = json.loads(r.read().decode('utf-8'))
@@ -486,9 +500,8 @@ def _construct_request(per_page, page, query_args, template, auth):
     request = Request(template + '?' + querystring)
     if auth:
         if 'token' in auth:
-            new_token = _update_githubapp_token(auth['token'])
-            auth['token'] = new_token
-            request.add_header('Authorization', 'Bearer ' + new_token)  # noqa
+            auth['token']= _update_githubapp_token(auth['token'])
+            request.add_header('Authorization', 'Bearer ' + auth['token')  # noqa
         elif 'basic_auth' in auth:
             request.add_header('Authorization', 'Basic '.encode('ascii') + auth['basic_auth'])  # noqa
 
