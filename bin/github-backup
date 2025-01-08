@@ -394,7 +394,6 @@ def _update_githubapp_token(current_token):
     global _token_cache
     token_path = os.path.expanduser('~/.gh-token')
     # Default to the current token
-    new_token = current_token
     if os.path.exists(token_path):
         last_modified = os.path.getmtime(token_path)
 
@@ -404,8 +403,11 @@ def _update_githubapp_token(current_token):
             log_info('Token updated from ~/.gh-token')
             _token_cache['token'] = new_token
             _token_cache['last_modified'] = last_modified
+
+        if current_token != _token_cache['token']:
+            return _token_cache['token']
         
-        return new_token
+        return current_token
     else:
         log_error('No token found in ~/.gh-token')
 
