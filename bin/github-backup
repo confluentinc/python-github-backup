@@ -527,6 +527,12 @@ def _request_http_error(exc, auth, errors):
 
         time.sleep(delta)
         should_continue = True
+    
+    elif exc.code == 422:
+        print("Potentially endpoint spammed detected, sleeping for 60 seconds and retrying")
+        time.sleep(60)
+        should_continue = True
+
     return errors, should_continue
 
 
