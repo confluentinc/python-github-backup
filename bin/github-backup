@@ -478,7 +478,7 @@ def retrieve_data_graphql(args, graphql_url, query, req_type, query_vars=None, s
                     break
             elif type(response) == dict and single_request:
                 data.append(response)
-        page_info = response["data"]["repository"][req_type]["pageInfo"]
+        page_info = decoded_json["data"]["repository"][req_type]["pageInfo"]
         if page_info["hasNextPage"]:
             query_vars["cursor"] = page_info["endCursor"]
             page = page + 1
