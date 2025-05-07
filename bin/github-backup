@@ -795,9 +795,9 @@ def backup_issues(args, repo_cwd, repository, repos_template):
     _issue_template = '{0}/{1}/issues'.format(repos_template,
                                               repository['full_name'])
     _issue_query = """
-    query ($owner: String!, $repo: String!, $after: String, $state: [IssueState!], $sort: IssueOrderField!, $direction: OrderDirection!, $perPage: Int!) {
+    query ($owner: String!, $repo: String!, $cursor: String, $state: [IssueState!], $sort: IssueOrderField!, $direction: OrderDirection!, $perPage: Int!) {
         repository(owner: $owner, name: $repo) {
-            issues(first: $perPage, after: $after, states: $state, orderBy: {field: $sort, direction: $direction}) {
+            issues(first: $perPage, after: $cursor, states: $state, orderBy: {field: $sort, direction: $direction}) {
                 pageInfo {
                     endCursor
                     hasNextPage
@@ -880,7 +880,7 @@ def backup_issues(args, repo_cwd, repository, repos_template):
     _issue_query_vars = {
         'owner': repository['owner']['login'],
         'repo': repository['name'],
-        'after': None,
+        'cursor': None,
         'perPage': 100,
         "direction": "DESC",
         "sort": "UPDATED_AT"
@@ -943,9 +943,9 @@ def backup_pulls(args, repo_cwd, repository, repos_template):
                                              repository['full_name'])
     
     _pulls_query = """
-    query ($owner: String!, $repo: String!, $after: String, $state: [PullRequestState!], $sort: IssueOrderField!, $direction: OrderDirection!, $perPage: Int!) {
+    query ($owner: String!, $repo: String!, $cursor: String, $state: [PullRequestState!], $sort: IssueOrderField!, $direction: OrderDirection!, $perPage: Int!) {
         repository(owner: $owner, name: $repo) {
-            pullRequests(first: $perPage, after: $after, states: $state, orderBy: {field: $sort, direction: $direction}) {
+            pullRequests(first: $perPage, after: $cursor, states: $state, orderBy: {field: $sort, direction: $direction}) {
                 pageInfo {
                     endCursor
                     hasNextPage
@@ -974,7 +974,7 @@ def backup_pulls(args, repo_cwd, repository, repos_template):
     _pull_query_vars = {
         'owner': repository['owner']['login'],
         'repo': repository['name'],
-        'after': None,
+        'cursor': None,
         'perPage': 100,
         "direction": "DESC",
         "sort": "UPDATED_AT"
