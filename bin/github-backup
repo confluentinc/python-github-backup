@@ -482,6 +482,8 @@ def retrieve_data_graphql(args, graphql_url, query, req_type, query_vars=None, s
         if page_info["hasNextPage"]:
             query_vars["cursor"] = page_info["endCursor"]
             page = page + 1
+        else:
+            break
         
         if single_request:
             break
