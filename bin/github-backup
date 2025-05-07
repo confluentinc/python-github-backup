@@ -552,7 +552,7 @@ def _construct_graphql_request(url, query, query_vars, auth, req_type, page_no=1
         elif 'basic_auth' in auth:
             request.add_header('Authorization', 'Basic '.encode('ascii') + auth['basic_auth'])  # noqa
 
-    log_info('Requesting {}/{} {} Page {}'.format(query_vars["owner"], query_vars["repo"], req_type, page_no))
+    log_info('Requesting {}/{} {} Page: {}, State: {}'.format(query_vars["owner"], query_vars["repo"], req_type, page_no, query_vars["state"]))
     return request
 
 
@@ -586,9 +586,9 @@ def _request_http_error(exc, auth, errors):
         time.sleep(delta)
         should_continue = True
     
-    elif exc.code == 422:
-        print("Potentially endpoint spammed detected, sleeping for 60 seconds and retrying")
-        time.sleep(60)
+    elif exc.code == 502 or exc.code == 504:
+        print("Potential intermitent error, retrying...")
+        time.sleep(delta)
         should_continue = True
 
     return errors, should_continue
@@ -806,8 +806,6 @@ def backup_issues(args, repo_cwd, repository, repos_template):
                     number
                     title
                     body
-                    bodyText
-                    bodyHTML
                     state
                     stateReason
                     closed
@@ -837,40 +835,20 @@ def backup_issues(args, repo_cwd, repository, repos_template):
                         state
                         dueOn
                         createdAt
+                        number
+                        url
                     }
-                    reactions(first: 10) {
-                        nodes {
-                            content
-                            user {
-                                login
-                            }
-                        }
+                    reactions(first: 100) {
                         totalCount
+                        nodes{
+                            content
+                        }
                     }
                     comments(first: 10) {
                         totalCount
-                        nodes {
-                            body
-                            
-                            author {
-                                login
-                            }
-                            createdAt
-                        }
                     }
                     timelineItems(first: 10) {
                         totalCount
-                    }
-                    participants(first: 10) {
-                        nodes {
-                            login
-                        }
-                    }
-                    repository {
-                        name
-                        owner {
-                            login
-                        }
                     }
                 }
             }
