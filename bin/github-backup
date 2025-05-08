@@ -8,7 +8,7 @@ import calendar
 import codecs
 import errno
 import getpass
-import json
+from json import dump as json_dump, dumps as json_dumps, loads as json_loads
 import logging
 import os
 import re
@@ -411,6 +411,7 @@ def _update_githubapp_token(current_token):
     else:
         log_error('No token found in ~/.gh-token')
 
+
 def retrieve_data(args, template, query_args=None, single_request=False):
     auth = get_auth(args)
     
@@ -431,7 +432,7 @@ def retrieve_data(args, template, query_args=None, single_request=False):
             errors.append(err_template.format(status_code, r.reason))
             log_error(errors)
             
-        response = json.loads(r.read().decode('utf-8'))
+        response = json_loads(r.read().decode('utf-8'))
         if len(errors) == 0:
             if type(response) == list:
                 data.extend(response)
@@ -469,7 +470,7 @@ def retrieve_data_graphql(args, graphql_url, query, req_type, query_vars=None, s
             errors.append(err_template.format(status_code, r.reason))
             log_error(errors)
             
-        decoded_json = json.loads(r.read().decode('utf-8'))
+        decoded_json = json_loads(r.read().decode('utf-8'))
         response = decoded_json.get('data', {}).get('repository', {}).get(req_type, {}).get('nodes', [])
         if len(errors) == 0:
             if type(response) == list:
@@ -540,7 +541,7 @@ def _construct_request(per_page, page, query_args, template, auth):
 
 
 def _construct_graphql_request(url, query, query_vars, auth, req_type, page_no=1):
-    body = body = json.dumps({
+    body = body = json_dumps({
         "query": query,
         "variables": query_vars
     }).encode('utf-8')
@@ -552,7 +553,7 @@ def _construct_graphql_request(url, query, query_vars, auth, req_type, page_no=1
         elif 'basic_auth' in auth:
             request.add_header('Authorization', 'Basic '.encode('ascii') + auth['basic_auth'])  # noqa
 
-    log_info('Requesting {}/{} {} Page: {}, State: {}'.format(query_vars["owner"], query_vars["repo"], req_type, page_no, query_vars["state"]))
+    log_info(f"Requesting {query_vars['owner']}/{query_vars['owner']} {req_type} Page: {page_no}, State: {query_vars['owner']}")
     return request
 
 
@@ -587,7 +588,7 @@ def _request_http_error(exc, auth, errors):
         should_continue = True
     
     elif exc.code == 502 or exc.code == 504:
-        print("Potential intermitent error, retrying...")
+        print("Potential intermittent error, retrying...")
         time.sleep(delta)
         should_continue = True
 
@@ -748,7 +749,7 @@ def backup_repositories(args, output_directory, repositories):
                 # dump gist information to a file as well
                 output_file = '{0}/gist.json'.format(repo_cwd)
                 with codecs.open(output_file, 'w', encoding='utf-8') as f:
-                    json_dump(repository, f)
+                    json_dump_formatted(repository, f)
 
                 continue  # don't try to back anything else for a gist; it doesn't exist
 
@@ -904,7 +905,7 @@ def backup_issues(args, repo_cwd, repository, repos_template):
 
         issue_file = '{0}/{1}.json'.format(issue_cwd, number)
         with codecs.open(issue_file, 'w', encoding='utf-8') as f:
-            json_dump(issue, f)
+            json_dump_formatted(issue, f)
 
 
 def backup_pulls(args, repo_cwd, repository, repos_template):
@@ -1004,7 +1005,7 @@ def backup_pulls(args, repo_cwd, repository, repos_template):
 
         pull_file = '{0}/{1}.json'.format(pulls_cwd, number)
         with codecs.open(pull_file, 'w', encoding='utf-8') as f:
-            json_dump(pull, f)
+            json_dump_formatted(pull, f)
 
 
 def backup_milestones(args, repo_cwd, repository, repos_template):
@@ -1033,7 +1034,7 @@ def backup_milestones(args, repo_cwd, repository, repos_template):
     for number, milestone in list(milestones.items()):
         milestone_file = '{0}/{1}.json'.format(milestone_cwd, number)
         with codecs.open(milestone_file, 'w', encoding='utf-8') as f:
-            json_dump(milestone, f)
+            json_dump_formatted(milestone, f)
 
 
 def backup_labels(args, repo_cwd, repository, repos_template):
@@ -1186,11 +1187,11 @@ def _backup_data(args, name, template, output_file, output_directory):
 
         log_info('Writing {0} {1} to disk'.format(len(data), name))
         with codecs.open(output_file, 'w', encoding='utf-8') as f:
-            json_dump(data, f)
+            json_dump_formatted(data, f)
 
 
-def json_dump(data, output_file):
-    json.dump(data,
+def json_dump_formatted(data, output_file):
+    json_dump(data,
               output_file,
               ensure_ascii=False,
               sort_keys=True,
