@@ -8,7 +8,7 @@ import calendar
 import codecs
 import errno
 import getpass
-import json
+from json import dump as json_dump, dumps as json_dumps, loads as json_loads
 import logging
 import os
 import re
@@ -432,7 +432,7 @@ def retrieve_data(args, template, query_args=None, single_request=False):
             errors.append(err_template.format(status_code, r.reason))
             log_error(errors)
             
-        response = json.loads(r.read().decode('utf-8'))
+        response = json_loads(r.read().decode('utf-8'))
         if len(errors) == 0:
             if type(response) == list:
                 data.extend(response)
@@ -450,13 +450,55 @@ def retrieve_data(args, template, query_args=None, single_request=False):
     return data
 
 
+def retrieve_data_graphql(args, graphql_url, query, req_type, query_vars=None, single_request=False):
+    # args, query, query_vars, single_request
+    auth = get_auth(args)
+    
+    per_page = 100
+    data = []
+    query_vars['perPage'] = per_page
+    page = 1
+
+    while True:
+        request = _construct_graphql_request(graphql_url, query, query_vars, auth, req_type, page)
+       
+        r, errors = _get_response(request, auth)
+        status_code = int(r.getcode())
+
+        if status_code != 200:
+            err_template = 'API request returned HTTP {0}: {1}'
+            errors.append(err_template.format(status_code, r.reason))
+            log_error(errors)
+            
+        decoded_json = json_loads(r.read().decode('utf-8'))
+        response = decoded_json.get('data', {}).get('repository', {}).get(req_type, {}).get('nodes', [])
+        if len(errors) == 0:
+            if type(response) == list:
+                data.extend(response)
+                if len(response) < per_page:
+                    break
+            elif type(response) == dict and single_request:
+                data.append(response)
+        page_info = decoded_json["data"]["repository"][req_type]["pageInfo"]
+        if page_info["hasNextPage"]:
+            query_vars["cursor"] = page_info["endCursor"]
+            page = page + 1
+        else:
+            break
+        
+        if single_request:
+            break
+
+    return data
+
+
 def get_query_args(query_args=None):
     if not query_args:
         query_args = {}
     return query_args
 
 
-def _get_response(request, auth, template):
+def _get_response(request, auth, template=None):
     retry_timeout = 3
     errors = []
     # We'll make requests in a loop so we can
@@ -498,6 +540,23 @@ def _construct_request(per_page, page, query_args, template, auth):
     return request
 
 
+def _construct_graphql_request(url, query, query_vars, auth, req_type, page_no=1):
+    body = body = json_dumps({
+        "query": query,
+        "variables": query_vars
+    }).encode('utf-8')
+    request = Request(url, data=body, method="POST")
+    if auth:
+        if 'token' in auth:
+            auth['token']= _update_githubapp_token(auth['token'])
+            request.add_header('Authorization', 'Bearer ' + auth['token'])  # noqa
+        elif 'basic_auth' in auth:
+            request.add_header('Authorization', 'Basic '.encode('ascii') + auth['basic_auth'])  # noqa
+
+    log_info(f"Requesting {query_vars['owner']}/{query_vars['owner']} {req_type} Page: {page_no}, State: {query_vars['owner']}")
+    return request
+
+
 def _request_http_error(exc, auth, errors):
     # HTTPError behaves like a Response so we can
     # check the status code and headers to see exactly
@@ -527,6 +586,12 @@ def _request_http_error(exc, auth, errors):
 
         time.sleep(delta)
         should_continue = True
+    
+    elif exc.code == 502 or exc.code == 504:
+        print("Potential intermittent error, retrying...")
+        time.sleep(delta)
+        should_continue = True
+
     return errors, should_continue
 
 
@@ -684,7 +749,7 @@ def backup_repositories(args, output_directory, repositories):
                 # dump gist information to a file as well
                 output_file = '{0}/gist.json'.format(repo_cwd)
                 with codecs.open(output_file, 'w', encoding='utf-8') as f:
-                    json_dump(repository, f)
+                    json_dump_formatted(repository, f)
 
                 continue  # don't try to back anything else for a gist; it doesn't exist
 
@@ -730,20 +795,89 @@ def backup_issues(args, repo_cwd, repository, repos_template):
     issues_skipped_message = ''
     _issue_template = '{0}/{1}/issues'.format(repos_template,
                                               repository['full_name'])
+    _issue_query = """
+    query ($owner: String!, $repo: String!, $cursor: String, $state: [IssueState!], $sort: IssueOrderField!, $direction: OrderDirection!, $perPage: Int!) {
+        repository(owner: $owner, name: $repo) {
+            issues(first: $perPage, after: $cursor, states: $state, orderBy: {field: $sort, direction: $direction}) {
+                pageInfo {
+                    endCursor
+                    hasNextPage
+                }
+                nodes {
+                    number
+                    title
+                    body
+                    state
+                    stateReason
+                    closed
+                    closedAt
+                    url
+                    createdAt
+                    updatedAt
+                    authorAssociation
+                    author {
+                        login
+                    }
+                    assignees(first: 10) {
+                        nodes {
+                            login
+                        }
+                    }
+                    labels(first: 10) {
+                        nodes {
+                            name
+                            color
+                            description
+                        }
+                    }
+                    milestone {
+                        title
+                        description
+                        state
+                        dueOn
+                        createdAt
+                        number
+                        url
+                    }
+                    reactions(first: 100) {
+                        totalCount
+                        nodes{
+                            content
+                        }
+                    }
+                    comments(first: 10) {
+                        totalCount
+                    }
+                    timelineItems(first: 10) {
+                        totalCount
+                    }
+                }
+            }
+        }
+    }
+    """
+    _issue_query_vars = {
+        'owner': repository['owner']['login'],
+        'repo': repository['name'],
+        'cursor': None,
+        'perPage': 100,
+        "direction": "DESC",
+        "sort": "UPDATED_AT"
+
+    }
+    graphql_url = 'https://{0}/graphql'.format(get_github_api_host(args))
 
     should_include_pulls = args.include_pulls or args.include_everything
-    issue_states = ['open', 'closed']
+    issue_states = ['OPEN', 'CLOSED']
     for issue_state in issue_states:
-        query_args = {
-            'filter': 'all',
-            'state': issue_state
-        }
-        if args.since:
-            query_args['since'] = args.since
+        _issue_query_vars['state'] = issue_state
+        _issues = retrieve_data_graphql(args, 
+                                graphql_url,
+                                _issue_query,
+                                query_vars=_issue_query_vars,
+                                 req_type='issues',
+                                 single_request=False)
 
-        _issues = retrieve_data(args,
-                                _issue_template,
-                                query_args=query_args)
         for issue in _issues:
             # skip pull requests which are also returned as issues
             # if retrieving pull requests is requested as well
@@ -771,7 +905,7 @@ def backup_issues(args, repo_cwd, repository, repos_template):
 
         issue_file = '{0}/{1}.json'.format(issue_cwd, number)
         with codecs.open(issue_file, 'w', encoding='utf-8') as f:
-            json_dump(issue, f)
+            json_dump_formatted(issue, f)
 
 
 def backup_pulls(args, repo_cwd, repository, repos_template):
@@ -786,30 +920,71 @@ def backup_pulls(args, repo_cwd, repository, repos_template):
     pulls = {}
     _pulls_template = '{0}/{1}/pulls'.format(repos_template,
                                              repository['full_name'])
-    query_args = {
-        'filter': 'all',
-        'state': 'all',
-        'sort': 'updated',
-        'direction': 'desc',
+    
+    _pulls_query = """
+    query ($owner: String!, $repo: String!, $cursor: String, $state: [PullRequestState!], $sort: IssueOrderField!, $direction: OrderDirection!, $perPage: Int!) {
+        repository(owner: $owner, name: $repo) {
+            pullRequests(first: $perPage, after: $cursor, states: $state, orderBy: {field: $sort, direction: $direction}) {
+                pageInfo {
+                    endCursor
+                    hasNextPage
+                }
+                nodes {
+                    author {
+                        login
+                    }
+                    baseRefName
+                    createdAt
+                    headRefName
+                    isDraft
+                    mergedAt
+                    mergeable
+                    number
+                    state
+                    title
+                    updatedAt
+                    url
+                }
+            }
+        }
+    }
+    """
+
+    _pull_query_vars = {
+        'owner': repository['owner']['login'],
+        'repo': repository['name'],
+        'cursor': None,
+        'perPage': 100,
+        "direction": "DESC",
+        "sort": "UPDATED_AT"
     }
 
+    graphql_url = 'https://{0}/graphql'.format(get_github_api_host(args))
+
     if not args.include_pull_details:
-        pull_states = ['open', 'closed']
+        pull_states = ['OPEN', 'CLOSED']
         for pull_state in pull_states:
-            query_args['state'] = pull_state
+            _pull_query_vars['state'] = pull_state
             # It'd be nice to be able to apply the args.since filter here...
-            _pulls = retrieve_data(args,
-                                   _pulls_template,
-                                   query_args=query_args)
+            _pulls = retrieve_data_graphql(args, 
+                                graphql_url,
+                                _pulls_query,
+                                query_vars=_pull_query_vars,
+                                 req_type='pullRequests',
+                                 single_request=False)
             for pull in _pulls:
-                if not args.since or pull['updated_at'] >= args.since:
+                if not args.since or pull['updatedAt'] >= args.since:
                     pulls[pull['number']] = pull
     else:
-        _pulls = retrieve_data(args,
-                               _pulls_template,
-                               query_args=query_args)
+        _pull_query_vars['state'] = ['OPEN', 'CLOSED']
+        _pulls = retrieve_data_graphql(args,
+                                graphql_url,
+                                _pulls_query,
+                                query_vars=_pull_query_vars,
+                                 req_type='pullRequests',
+                                 single_request=False)
         for pull in _pulls:
-            if not args.since or pull['updated_at'] >= args.since:
+            if not args.since or pull['updatedAt'] >= args.since:
                 pulls[pull['number']] = retrieve_data(
                     args,
                     _pulls_template + '/{}'.format(pull['number']),
@@ -830,7 +1005,7 @@ def backup_pulls(args, repo_cwd, repository, repos_template):
 
         pull_file = '{0}/{1}.json'.format(pulls_cwd, number)
         with codecs.open(pull_file, 'w', encoding='utf-8') as f:
-            json_dump(pull, f)
+            json_dump_formatted(pull, f)
 
 
 def backup_milestones(args, repo_cwd, repository, repos_template):
@@ -859,7 +1034,7 @@ def backup_milestones(args, repo_cwd, repository, repos_template):
     for number, milestone in list(milestones.items()):
         milestone_file = '{0}/{1}.json'.format(milestone_cwd, number)
         with codecs.open(milestone_file, 'w', encoding='utf-8') as f:
-            json_dump(milestone, f)
+            json_dump_formatted(milestone, f)
 
 
 def backup_labels(args, repo_cwd, repository, repos_template):
@@ -1012,11 +1187,11 @@ def _backup_data(args, name, template, output_file, output_directory):
 
         log_info('Writing {0} {1} to disk'.format(len(data), name))
         with codecs.open(output_file, 'w', encoding='utf-8') as f:
-            json_dump(data, f)
+            json_dump_formatted(data, f)
 
 
-def json_dump(data, output_file):
-    json.dump(data,
+def json_dump_formatted(data, output_file):
+    json_dump(data,
               output_file,
               ensure_ascii=False,
               sort_keys=True,
