@@ -566,16 +566,17 @@ def _request_http_error(exc, auth, errors):
     headers = exc.headers
     limit_remaining = int(headers.get('x-ratelimit-remaining', 0))
 
-    if exc.code == 403 and limit_remaining < 1:
-        # The X-RateLimit-Reset header includes a
-        # timestamp telling us when the limit will reset
-        # so we can calculate how long to wait rather
-        # than inefficiently polling:
-        gm_now = calendar.timegm(time.gmtime())
-        reset = int(headers.get('x-ratelimit-reset', 0)) or gm_now
-        # We'll never sleep for less than 10 seconds:
-        delta = max(10, reset - gm_now)
+    # The X-RateLimit-Reset header includes a
+    # timestamp telling us when the limit will reset
+    # so we can calculate how long to wait rather
+    # than inefficiently polling:
+    gm_now = calendar.timegm(time.gmtime())
+    reset = int(headers.get('x-ratelimit-reset', 0)) or gm_now
 
+    # We'll never sleep for less than 10 seconds:
+    delta = max(10, reset - gm_now)
+
+    if exc.code == 403 and limit_remaining < 1:
         limit = headers.get('x-ratelimit-limit')
         print('Exceeded rate limit of {} requests; waiting {} seconds to reset'.format(limit, delta),  # noqa
               file=sys.stderr)
