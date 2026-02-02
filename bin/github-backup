@@ -25,6 +25,7 @@ try:
     from urllib.error import HTTPError, URLError
     from urllib.request import urlopen
     from urllib.request import Request
+    from http.client import RemoteDisconnected
 except ImportError:
     # python 2
     from urlparse import urlparse
@@ -33,6 +34,7 @@ except ImportError:
     from urllib2 import HTTPError, URLError
     from urllib2 import urlopen
     from urllib2 import Request
+    from httplib import HTTPException as RemoteDisconnected
 
 from github_backup import __version__
 
@@ -499,7 +501,8 @@ def get_query_args(query_args=None):
 
 
 def _get_response(request, auth, template=None):
-    retry_timeout = 3
+    max_retries = 5
+    retry_count = 0
     errors = []
     # We'll make requests in a loop so we can
     # delay and retry in the case of rate-limiting
@@ -511,8 +514,16 @@ def _get_response(request, auth, template=None):
             errors, should_continue = _request_http_error(exc, auth, errors)  # noqa
             r = exc
         except URLError:
-            should_continue = _request_url_error(template, retry_timeout)
-            if not should_continue:
+            should_continue = _request_connection_error(template, retry_count, max_retries, 'URLError')
+            if should_continue:
+                retry_count += 1
+            else:
+                raise
+        except RemoteDisconnected as exc:
+            should_continue = _request_connection_error(template, retry_count, max_retries, 'RemoteDisconnected')
+            if should_continue:
+                retry_count += 1
+            else:
                 raise
 
         if should_continue:
@@ -596,16 +607,20 @@ def _request_http_error(exc, auth, errors):
     return errors, should_continue
 
 
-def _request_url_error(template, retry_timeout):
-    # Incase of a connection timing out, we can retry a few time
+def _request_connection_error(template, retry_count, max_retries, error_type):
+    # In case of a connection error, we can retry a few times with exponential backoff
     # But we won't crash and not back-up the rest now
-    log_info('{} timed out'.format(template))
-    retry_timeout -= 1
-
-    if retry_timeout >= 0:
+    if retry_count < max_retries:
+        # Exponential backoff: 2, 4, 8, 16, 32 seconds
+        wait_time = 2 ** (retry_count + 1)
+        template_str = template if template else 'Request'
+        print('Connection error ({}) for {}; retry {}/{} after {} seconds'.format(
+            error_type, template_str, retry_count + 1, max_retries, wait_time),
+            file=sys.stderr)
+        time.sleep(wait_time)
         return True
 
-    log_error('{} timed out to much, skipping!')
+    log_error('{} failed after {} retries, skipping!'.format(template if template else 'Request', max_retries))
     return False
 
 
